@@ -1,0 +1,64 @@
+name: Build kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-kernel:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare host environment
+        run: |
+            sudo apt update -y
+            sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev gnupg flex bison build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 libncurses6 libncursesw6 lib32ncurses-dev lib32ncurses6 lib32ncursesw6 libncurses5-dev lib32ncurses-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig make python2
+            sudo apt install -y neofetch
+      - uses: actions/checkout@v3
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Echo host details
+        run: |
+            neofetch
+      # - name: Prepare toolchains
+      #   run: |
+      #     mkdir clang && wget https://github.com/XSans0/WeebX-Clang/releases/download/WeebX-Clang-17.0.0-release/WeebX-Clang-17.0.0.tar.gz && tar -C clang/ -zxvf *.tar.gz
+      # - name: Pull the kernel source
+      #   run: |
+      #     #git clone --depth=1 https://github.com/williammmmmmmmm/android_kernel_xiaomi_alioth -b tenduo kernel-source
+          
+      - name: Pull KSU
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+          cd "KernelSU"
+          echo "KsuVer=$(git describe --abbrev=0 --tags)" >> $GITHUB_ENV
+          cd ../
+      - name: Build
+        run: |
+          ./build.sh
+          pwd
+          ls -alh
+          #echo "123" >> arch/arm64/boot/Image
+          find ./ -type f -name Image
+#       - name: Upload
+#         uses: actions/upload-artifact@v3
+#         with:
+#           name: ${{ date "+%Y.%m.%d" }}
+#           path: $GITHUB_WORKSPACE/kernel-source/out/arch/arm64/boot/Image
+          
+      - name: set env
+        run: echo "NOW=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+        
+      - name: Create Release and Upload Release Asset
+        uses: softprops/action-gh-release@v1
+#         if: startsWith(github.ref, 'refs/tags/')
+        with:
+         tag_name: ${{ steps.tag_version.outputs.new_tag }}
+         name: Release Linux 4.19 kernel for Redmi K40 (alioth/in)-${{ env.NOW }} with KSU ${{ env.KsuVer}}
+         body: this is K40 kernel whth KernelSU ${{ env.KsuVer}} image.
+         draft: false
+         prerelease: false
+         files: |
+           out/arch/arm64/boot/Image

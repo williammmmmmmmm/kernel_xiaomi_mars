@@ -37,6 +37,7 @@ jobs:
           cd ../
       - name: Build
         run: |
+          chmod +x build.sh
           ./build.sh
           pwd
           ls -alh

@@ -63,3 +63,4 @@ jobs:
          prerelease: false
          files: |
            out/arch/arm64/boot/Image
+           out/FlowerKernel-*.zip

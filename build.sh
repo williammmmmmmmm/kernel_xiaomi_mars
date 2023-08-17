@@ -16,8 +16,7 @@ git clone https://github.com/FlowerSea0208/AnyKernel3 $ANYKERNEL_PATH
 
 echo "=========================Clean========================="
 rm -rf $KERNEL_PATH/out/ *.zip
-make mrproper 
-# && git reset --hard HEAD
+make mrproper && git reset --hard HEAD
 
 echo "=========================Build========================="
 make -j$(nproc) O=out CC="ccache clang" CXX="ccache clang++" CROSS_COMPILE=$CLANG_PATH/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32=$CLANG_PATH/bin/arm-linux-gnueabi- LD=ld.lld vendor/mars_defconfig

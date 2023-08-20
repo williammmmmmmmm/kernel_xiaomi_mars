@@ -101,7 +101,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-         tag_name: ${{ steps.tag_version.outputs.new_tag }}
+         tag_name: ${{ env.linux_version }}-thirteen.${{ env.KSU_VERSION}}
          name: Release Linux ${{ env.linux_version }} kernel for Xiaomi 11 Pro/Star in-${{ env.NOW }} with KSU ${{ env.KSU_VERSION}}
          body: this is Xiaomi 11 Pro/Star kernel whth KernelSU ${{ env.KSU_VERSION}} image. KSU_tags is ${{ env.KSU_tags}}
          draft: false

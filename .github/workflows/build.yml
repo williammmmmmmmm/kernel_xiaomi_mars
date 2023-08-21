@@ -1,0 +1,111 @@
+name: Build kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-kernel:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare host environment
+        run: |
+          echo "===================install star==================="
+          sudo apt update -y
+          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev gnupg flex bison build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 libncurses6 libncursesw6 lib32ncurses-dev lib32ncurses6 lib32ncursesw6 libncurses5-dev lib32ncurses-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig make python2
+          sudo apt install -y neofetch
+          echo "===================install OK==================="
+
+      - uses: actions/checkout@v3
+
+      - name: Echo host details
+        run: |
+          neofetch
+
+      - name: Prepare toolchains and AnyKernel3
+        run: |
+          echo "===================Setup Environment==================="
+          {
+          echo "CLANG_PATH=$HOME/prelude-clang"
+          echo "ANYKERNEL_PATH=$HOME/Anykernel3"
+          echo "KERNEL_PATH=$PWD"
+          VERSION=$(head -n 5 Makefile | grep -e '^VERSION' | awk '{print $ NF}')
+          PATCHLEVEL=$(head -n 5 Makefile | grep -e '^PATCHLEVEL' | awk '{print $ NF}')
+          SUBLEVEL=$(head -n 5 Makefile | grep -e '^SUBLEVEL' | awk '{print $ NF}')
+          echo "linux_version=$VERSION.$PATCHLEVEL.$SUBLEVEL"
+          } >> "$GITHUB_ENV"
+          git clone --depth=1 https://gitlab.com/jjpprrrr/prelude-clang "$HOME"/prelude-clang
+          git clone --depth=1 https://github.com/williammmmmmmmm/AnyKernel3_star "$HOME"/Anykernel3
+
+      - name: Pull KSU
+        run: |
+          echo "=========================setup KernelSU========================="
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
+          cd KernelSU || exit 255
+          {
+          echo "KERNEL_NAME=FlowerKernel-$(date +"%Y%m%d")-KSU$(( 10000 + $(git rev-list --count HEAD) + 200))"
+          echo "KSU_VERSION=$((10000 + $(git rev-list --count HEAD) + 200))"
+          echo "KSU_tags=$(git describe --abbrev=0 --tags)"
+          } >> "$GITHUB_ENV"
+          cd "$KERNEL_PATH" || exit 255
+
+      - name: Change static funtion
+        run: |
+          sed -i 's/static void input_handle_event/noinline void input_handle_event/g' "$KERNEL_PATH"/drivers/input/input.c
+          sed -i 's/static int __do_execve_file/noinline int __do_execve_file/g' "$KERNEL_PATH"/fs/exec.c
+          grep -n 'void input_handle_event' "$KERNEL_PATH"/drivers/input/input.c
+          grep -n '__do_execve_file' "$KERNEL_PATH"/fs/exec.c
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          custom_tag : ${{ env.linux_version }}-thirteen-${{ env.KSU_VERSION }}
+
+      - name: Build
+        run: |
+          echo "$CLANG_PATH"
+          export PATH="$CLANG_PATH"/bin:${PATH}
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          export ARCH=arm64
+          export SUBARCH=arm64
+          echo "=========================Build========================="
+          make -j"$(nproc)" O=out CC="ccache clang" CXX="ccache clang++" CROSS_COMPILE="$CLANG_PATH"/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32="$CLANG_PATH"/bin/arm-linux-gnueabi- LD=ld.lld vendor/mars_defconfig
+          make -j"$(nproc)" O=out CC="ccache clang" CXX="ccache clang++" CROSS_COMPILE="$CLANG_PATH"/bin/aarch64-linux-gnu- CROSS_COMPILE_ARM32="$CLANG_PATH"/bin/arm-linux-gnueabi- LD=ld.lld 2>&1 | tee out/kernel.log
+          if [ ! -e "$KERNEL_PATH"/out/arch/arm64/boot/Image ]; then
+              echo "=======================FAILED!!!======================="
+              exit 255>/dev/null 2>&1
+          fi
+          pwd
+          ls -alh
+          find ./ -type f -name Image
+
+      - name: Patch
+        run: |
+          echo "=========================Patch========================="
+          rm -r "$ANYKERNEL_PATH"/modules "$ANYKERNEL_PATH"/patch "$ANYKERNEL_PATH"/ramdisk
+          if [ -f "$KERNEL_PATH"/anykernel.sh ]; then cp "$KERNEL_PATH"/anykernel.sh "$ANYKERNEL_PATH"/; fi 
+          cp "$KERNEL_PATH"/out/arch/arm64/boot/Image "$ANYKERNEL_PATH"/
+          cd "$ANYKERNEL_PATH" || exit 255
+          zip -r "$KERNEL_NAME" ./*
+          mv "$KERNEL_NAME".zip "$KERNEL_PATH"/out/
+          cd "$KERNEL_PATH" || exit 255
+          rm -rf "$ANYKERNEL_PATH"
+          echo "$KERNEL_NAME".zip
+
+      - name: set env
+        run: echo "NOW=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
+      - name: Create Release and Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        #if: startsWith(github.ref, 'refs/tags/')
+        with:
+         tag_name: ${{ steps.tag_version.outputs.new_tag }}
+         name: Release Linux ${{ env.linux_version }} kernel for Xiaomi 11 Pro/Star in ${{ env.NOW }} with KSU ${{ env.KSU_VERSION}}
+         body: This is Xiaomi 11 Pro/Star kernel whth KernelSU ${{ env.KSU_VERSION}} image. KSU_tags is ${{ env.KSU_tags}}
+         draft: false
+         prerelease: false
+         files: |
+           out/arch/arm64/boot/Image
+           out/FlowerKernel-*.zip

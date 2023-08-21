@@ -99,7 +99,7 @@ jobs:
 
       - name: Create Release and Upload Release Asset
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        #if: startsWith(github.ref, 'refs/tags/')
         with:
          tag_name: ${{ env.linux_version }}-thirteen.${{ env.KSU_VERSION}}
          name: Release Linux ${{ env.linux_version }} kernel for Xiaomi 11 Pro/Star in-${{ env.NOW }} with KSU ${{ env.KSU_VERSION}}
